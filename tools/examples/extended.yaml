@@ -1,0 +1,20 @@
+# tools/examples/extended.yaml
+# Extended frame IDs and CAN FD
+
+bus:
+  protocol: CAN
+  bit_rate: 500000
+
+frames:
+  - comment: Extended frame
+    id: 0x12345678
+    dlc: 4
+    data: "CA FE BA BE"
+    extended: true
+    delay_after_ms: 5
+
+  - comment: Remote frame (requests data, no payload)
+    id: 0x123
+    dlc: 4
+    remote: true
+    delay_after_ms: 5

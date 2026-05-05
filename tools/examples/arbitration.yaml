@@ -1,0 +1,23 @@
+# tools/examples/arbitration.yaml
+# Tests arbitration - three frames submitted with no delay
+# so they compete on the bus. Lowest ID must win.
+
+bus:
+  protocol: CAN
+  bit_rate: 500000
+
+frames:
+  - comment: Low priority (should transmit last)
+    id: 0x7FF
+    dlc: 1
+    data: "CC"
+
+  - comment: High priority (should transmit first)
+    id: 0x001
+    dlc: 1
+    data: "AA"
+
+  - comment: Medium priority
+    id: 0x100
+    dlc: 1
+    data: "BB"

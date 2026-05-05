@@ -1,0 +1,19 @@
+# tools/examples/canfd.yaml
+# CAN FD example with large payload
+
+bus:
+  protocol: CAN_FD
+  bit_rate: 500000
+  data_bit_rate: 2000000
+
+frames:
+  - comment: CAN FD frame with 12 bytes (DLC=9)
+    id: 0x200
+    dlc: 9
+    data: "01 02 03 04 05 06 07 08 09 0A 0B 0C"
+    delay_after_ms: 10
+
+  - comment: CAN FD frame with 8 bytes
+    id: 0x201
+    dlc: 8
+    data: "DE AD BE EF CA FE BA BE"

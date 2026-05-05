@@ -1,0 +1,30 @@
+# tools/examples/basic.yaml
+# Basic example - a few frames with delays
+
+bus:
+  protocol: CAN
+  bit_rate: 500000
+
+frames:
+  - comment: Engine RPM
+    id: 0x123
+    dlc: 4
+    data: "DE AD BE EF"
+    delay_after_ms: 10
+
+  - comment: Vehicle speed
+    id: 0x456
+    dlc: 2
+    data: "01 F4"
+    delay_after_ms: 10
+
+  - comment: Throttle position
+    id: 0x200
+    dlc: 1
+    data: "7F"
+    delay_after_ms: 5
+
+  - comment: Engine temperature
+    id: 0x300
+    dlc: 2
+    data: "00 6E"
