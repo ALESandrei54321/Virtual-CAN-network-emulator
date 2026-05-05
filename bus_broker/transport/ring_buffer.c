@@ -5,47 +5,65 @@
 // ── Shared memory management ──────────────────────────────────────────────────
 
 SharedBus* shm_create(void) {
-    // Remove any stale shm from a previous run
-    shm_unlink(SHM_NAME);
-
-    int fd = shm_open(SHM_NAME, O_CREAT | O_RDWR, 0666);
+    // Try to open existing first
+    int fd = shm_open(SHM_NAME, O_RDWR, 0666);
+    
     if (fd < 0) {
-        perror("shm_open create");
-        return NULL;
-    }
+        // Does not exist yet - create it fresh
+        fd = shm_open(SHM_NAME, O_CREAT | O_RDWR, 0666);
+        if (fd < 0) {
+            perror("shm_open create");
+            return NULL;
+        }
 
-    size_t size = sizeof(SharedBus);
-    if (ftruncate(fd, size) < 0) {
-        perror("ftruncate");
+        if (ftruncate(fd, sizeof(SharedBus)) < 0) {
+            perror("ftruncate");
+            close(fd);
+            return NULL;
+        }
+
+        SharedBus* bus = mmap(
+            NULL, sizeof(SharedBus),
+            PROT_READ | PROT_WRITE,
+            MAP_SHARED,
+            fd, 0
+        );
         close(fd);
-        return NULL;
+
+        if (bus == MAP_FAILED) {
+            perror("mmap create");
+            return NULL;
+        }
+
+        // Fresh shm - zero and initialise
+        memset(bus, 0, sizeof(SharedBus));
+        atomic_store(&bus->write_index, 0);
+        atomic_store(&bus->read_index,  0);
+        return bus;
+
+    } else {
+        // Already exists - just map it
+        SharedBus* bus = mmap(
+            NULL, sizeof(SharedBus),
+            PROT_READ | PROT_WRITE,
+            MAP_SHARED,
+            fd, 0
+        );
+        close(fd);
+
+        if (bus == MAP_FAILED) {
+            perror("mmap existing");
+            return NULL;
+        }
+
+        return bus;
     }
-
-    SharedBus* bus = mmap(
-        NULL, size,
-        PROT_READ | PROT_WRITE,
-        MAP_SHARED,
-        fd, 0
-    );
-    close(fd);
-
-    if (bus == MAP_FAILED) {
-        perror("mmap create");
-        return NULL;
-    }
-
-    // Zero everything and set initial indices
-    memset(bus, 0, size);
-    atomic_store(&bus->write_index, 0);
-    atomic_store(&bus->read_index,  0);
-
-    return bus;
 }
 
 SharedBus* shm_open_existing(void) {
     int fd = shm_open(SHM_NAME, O_RDWR, 0666);
     if (fd < 0) {
-        perror("shm_open existing");
+        // No perror here - caller handles the missing shm case
         return NULL;
     }
 
@@ -62,6 +80,41 @@ SharedBus* shm_open_existing(void) {
         return NULL;
     }
 
+    return bus;
+}
+
+SharedBus* shm_reset(void) {
+    // Force remove whatever exists
+    shm_unlink(SHM_NAME);
+
+    int fd = shm_open(SHM_NAME, O_CREAT | O_RDWR, 0666);
+    if (fd < 0) {
+        perror("shm_open reset");
+        return NULL;
+    }
+
+    if (ftruncate(fd, sizeof(SharedBus)) < 0) {
+        perror("ftruncate reset");
+        close(fd);
+        return NULL;
+    }
+
+    SharedBus* bus = mmap(
+        NULL, sizeof(SharedBus),
+        PROT_READ | PROT_WRITE,
+        MAP_SHARED,
+        fd, 0
+    );
+    close(fd);
+
+    if (bus == MAP_FAILED) {
+        perror("mmap reset");
+        return NULL;
+    }
+
+    memset(bus, 0, sizeof(SharedBus));
+    atomic_store(&bus->write_index, 0);
+    atomic_store(&bus->read_index,  0);
     return bus;
 }
 

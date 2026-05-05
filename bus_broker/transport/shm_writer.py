@@ -11,10 +11,6 @@ MAX_SIGNAL_BYTES = 256
 RING_SIZE        = 1024
 
 class BusFrameSlot(ctypes.Structure):
-    """
-    Must match BusFrameSlot in ring_buffer.h exactly.
-    Field order, types, and packing must be identical.
-    """
     _pack_ = 1
     _fields_ = [
         ("timestamp_ns",    ctypes.c_uint64),
@@ -38,9 +34,11 @@ def _load_library() -> ctypes.CDLL:
         )
     lib = ctypes.CDLL(str(lib_path))
 
-    # Tell ctypes the return and argument types for each function
     lib.shm_create.restype        = ctypes.c_void_p
     lib.shm_create.argtypes       = []
+
+    lib.shm_reset.restype         = ctypes.c_void_p
+    lib.shm_reset.argtypes        = []
 
     lib.shm_open_existing.restype  = ctypes.c_void_p
     lib.shm_open_existing.argtypes = []
@@ -78,7 +76,7 @@ _lib = _load_library()
 class SHMBusWriter:
     """
     Used by the Bus Broker to write encoded frames into shared memory.
-    One instance per broker process.
+    Does NOT unlink shm on close - shm persists for readers.
     """
 
     def __init__(self):
@@ -87,17 +85,15 @@ class SHMBusWriter:
             raise RuntimeError("Failed to create shared memory bus")
 
     def write(self, slot: BusFrameSlot) -> bool:
-        """
-        Write a frame slot to the ring buffer.
-        Returns True on success, False if the buffer is full.
-        """
         result = _lib.shm_write(self._bus, ctypes.byref(slot))
         return result == 0
 
     def close(self):
-        _lib.shm_close(self._bus)
-        _lib.shm_unlink_bus()
-        self._bus = None
+        if self._bus:
+            # Only unmap, do not unlink.
+            # shm object stays in /dev/shm for readers.
+            _lib.shm_close(self._bus)
+            self._bus = None
 
     def __enter__(self):
         return self
@@ -109,25 +105,32 @@ class SHMBusWriter:
 class SHMBusReader:
     """
     Used by each ECU process to read frames from shared memory.
-    Each reader maintains its own position in the ring buffer
-    so multiple ECUs can read the same frames independently.
+    Each reader maintains its own position in the ring buffer.
+    Starts at the current write index so it only sees new frames,
+    not frames that were written before it connected.
     """
 
     def __init__(self):
-        self._bus            = _lib.shm_open_existing()
+        self._bus = _lib.shm_open_existing()
         if not self._bus:
             raise RuntimeError(
                 "Failed to open shared memory bus. "
                 "Is the broker running?"
             )
-        self._consumer_index = ctypes.c_uint64(0)
+        # Start at current write index - skip all past frames
+        current_write = self._get_write_index()
+        self._consumer_index = ctypes.c_uint64(current_write)
+
+    def _get_write_index(self) -> int:
+        """Read the current write index directly from shared memory."""
+        # write_index is the first 8 bytes of the SharedBus struct
+        # (first field of the first cache-line-aligned atomic)
+        buf = (ctypes.c_uint64 * 1)()
+        ctypes.memmove(buf, self._bus, 8)
+        return buf[0]
 
     def read(self) -> BusFrameSlot | None:
-        """
-        Read the next available frame.
-        Returns a BusFrameSlot or None if no new frames.
-        """
-        slot = BusFrameSlot()
+        slot   = BusFrameSlot()
         result = _lib.shm_read(
             self._bus,
             ctypes.byref(self._consumer_index),
@@ -136,12 +139,12 @@ class SHMBusReader:
         return slot if result == 0 else None
 
     def available(self) -> int:
-        """How many frames are waiting to be read."""
         return _lib.shm_available(self._bus, self._consumer_index.value)
 
     def close(self):
-        _lib.shm_close(self._bus)
-        self._bus = None
+        if self._bus:
+            _lib.shm_close(self._bus)
+            self._bus = None
 
     def __enter__(self):
         return self
@@ -155,11 +158,7 @@ def make_slot(
     frame,
     timestamp_ns: int | None = None
 ) -> BusFrameSlot:
-    """
-    Helper to build a BusFrameSlot from a DifferentialSignal and a CANFrame.
-    This is what the broker calls after encoding a frame.
-    """
-    slot = BusFrameSlot()
+    slot                = BusFrameSlot()
     slot.timestamp_ns   = timestamp_ns or time.time_ns()
     slot.arbitration_id = frame.arbitration_id
     slot.bit_count      = signal.bit_count
@@ -167,7 +166,6 @@ def make_slot(
     slot.is_extended    = int(frame.is_extended)
     slot.is_remote      = int(frame.is_remote)
 
-    # Copy signal bytes into the fixed-size arrays
     canh = signal.canh_bytes
     canl = signal.canl_bytes
     ctypes.memmove(slot.canh_bytes, canh, len(canh))

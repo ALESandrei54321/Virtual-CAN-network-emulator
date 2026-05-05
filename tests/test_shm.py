@@ -2,7 +2,6 @@
 
 import time
 import ctypes
-import multiprocessing
 import pytest
 
 from bus_broker.transport.shm_writer import (
@@ -10,29 +9,77 @@ from bus_broker.transport.shm_writer import (
     SHMBusReader,
     BusFrameSlot,
     make_slot,
+    _lib,
 )
 from bus_broker.core.frames import CANFrame, Protocol
 from bus_broker.core.encoder import CANEncoder
 from bus_broker.core.signal import SignalConverter
 
 
+# ── Helpers ───────────────────────────────────────────────────────────────────
+
+def make_test_slot(arb_id: int = 0x123) -> BusFrameSlot:
+    frame = CANFrame(
+        arbitration_id = arb_id,
+        dlc            = 4,
+        data           = bytes([0xDE, 0xAD, 0xBE, 0xEF])
+    )
+    encoder   = CANEncoder()
+    converter = SignalConverter()
+    bits      = encoder.encode(frame)
+    signal    = converter.to_differential(bits)
+    return make_slot(signal, frame)
+
+
+def make_fresh_writer() -> SHMBusWriter:
+    """Force a clean shm and return a writer mapped to it."""
+    bus = _lib.shm_reset()
+    if not bus:
+        raise RuntimeError("shm_reset failed")
+    w = SHMBusWriter.__new__(SHMBusWriter)
+    w._bus = bus
+    return w
+
+
+def make_reader_at_zero() -> SHMBusReader:
+    """Open existing shm and start reading from index 0."""
+    r = SHMBusReader.__new__(SHMBusReader)
+    r._bus = _lib.shm_open_existing()
+    if not r._bus:
+        raise RuntimeError("shm_open_existing failed")
+    r._consumer_index = ctypes.c_uint64(0)
+    return r
+
+
 # ── Fixtures ──────────────────────────────────────────────────────────────────
 
 @pytest.fixture
 def writer():
-    """Fresh writer (and fresh shm) for each test."""
-    w = SHMBusWriter()
+    w = make_fresh_writer()
     yield w
-    w.close()
+    _lib.shm_close(w._bus)
+    _lib.shm_unlink_bus()
+    w._bus = None
+
+
+@pytest.fixture
+def reader(writer):
+    # writer fixture has already reset shm - open and start at 0
+    r = make_reader_at_zero()
+    yield r
+    r.close()
+
 
 @pytest.fixture
 def writer_reader():
-    """Writer and reader connected to the same shm."""
-    w = SHMBusWriter()
-    r = SHMBusReader()
+    # Reset shm once, give both writer and reader access to it
+    w = make_fresh_writer()
+    r = make_reader_at_zero()
     yield w, r
     r.close()
-    w.close()
+    _lib.shm_close(w._bus)
+    _lib.shm_unlink_bus()
+    w._bus = None
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -163,8 +210,8 @@ def test_available_decrements_with_reads(writer_reader):
 
 def test_two_readers_get_same_frame(writer):
     """Each ECU gets its own copy - readers are independent."""
-    reader_a = SHMBusReader()
-    reader_b = SHMBusReader()
+    reader_a = make_reader_at_zero()
+    reader_b = make_reader_at_zero()
 
     writer.write(make_test_slot(arb_id=0x111))
 
@@ -179,18 +226,18 @@ def test_two_readers_get_same_frame(writer):
     reader_a.close()
     reader_b.close()
 
+
 def test_two_readers_independent_positions(writer):
     """Reader A consuming a frame does not affect Reader B's position."""
-    reader_a = SHMBusReader()
-    reader_b = SHMBusReader()
+    reader_a = make_reader_at_zero()
+    reader_b = make_reader_at_zero()
 
     writer.write(make_test_slot())
     writer.write(make_test_slot())
 
-    reader_a.read()   # A reads frame 1
-    reader_a.read()   # A reads frame 2
+    reader_a.read()
+    reader_a.read()
 
-    # B has not read anything yet - should still see 2 frames
     assert reader_b.available() == 2
 
     reader_a.close()
@@ -200,15 +247,21 @@ def test_two_readers_independent_positions(writer):
 # ── Context manager ───────────────────────────────────────────────────────────
 
 def test_writer_context_manager():
+    _lib.shm_reset()
     with SHMBusWriter() as w:
         assert w._bus is not None
     assert w._bus is None
+    _lib.shm_unlink_bus()
+
 
 def test_reader_context_manager():
+    _lib.shm_reset()
     with SHMBusWriter() as w:
-        with SHMBusReader() as r:
+        r = make_reader_at_zero()
+        with r:
             w.write(make_test_slot())
             assert r.read() is not None
+    _lib.shm_unlink_bus()
 
 
 # ── make_slot helper ──────────────────────────────────────────────────────────

@@ -70,6 +70,9 @@ void shm_unlink_bus(void);
 // Write a frame. Returns 0 on success, -1 if buffer is full.
 int shm_write(SharedBus* bus, const BusFrameSlot* frame);
 
+// Force delete and recreate the shm. Used by tests only.
+SharedBus* shm_reset(void);
+
 // Read the next frame for this consumer.
 // consumer_index is per-ECU state (each ECU tracks its own position).
 // Returns 0 on success, -1 if no new frames.
