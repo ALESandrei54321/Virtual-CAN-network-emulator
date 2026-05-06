@@ -1,0 +1,41 @@
+# tools/examples/chassis_inputs.yaml
+
+bus:
+  protocol: CAN
+  bit_rate: 500000
+
+frames:
+  - comment: Engine RPM 2000 (from engine ECU)
+    id: 0x043
+    dlc: 4
+    data: "00 00 07 D0"
+    delay_after_ms: 50
+
+  - comment: Engine RPM 4000
+    id: 0x043
+    dlc: 4
+    data: "00 00 0F A0"
+    delay_after_ms: 50
+
+  - comment: Throttle position 512
+    id: 0x039
+    dlc: 2
+    data: "02 00"
+    delay_after_ms: 50
+
+  - comment: Parking brake off
+    id: 0x1D3
+    dlc: 1
+    data: "00"
+    delay_after_ms: 50
+
+  - comment: Engine RPM 6000 (high speed)
+    id: 0x043
+    dlc: 4
+    data: "00 00 17 70"
+    delay_after_ms: 50
+
+  - comment: Parking brake on
+    id: 0x1D3
+    dlc: 1
+    data: "01"

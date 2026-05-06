@@ -1,0 +1,59 @@
+# tools/examples/engine_inputs.yaml
+
+bus:
+  protocol: CAN
+  bit_rate: 500000
+
+frames:
+  - comment: Engine start
+    id: 0x1B8
+    dlc: 1
+    data: "01"
+    delay_after_ms: 100
+
+  - comment: Select gear 1
+    id: 0x06D
+    dlc: 1
+    data: "01"
+    delay_after_ms: 50
+
+  - comment: Throttle 25 percent (256/1023)
+    id: 0x02F
+    dlc: 2
+    data: "01 00"
+    delay_after_ms: 100
+
+  - comment: Throttle 50 percent (512/1023)
+    id: 0x02F
+    dlc: 2
+    data: "02 00"
+    delay_after_ms: 100
+
+  - comment: Throttle 75 percent (768/1023)
+    id: 0x02F
+    dlc: 2
+    data: "03 00"
+    delay_after_ms: 100
+
+  - comment: Brake 200 kPa equivalent
+    id: 0x01A
+    dlc: 2
+    data: "02 00"
+    delay_after_ms: 100
+
+  - comment: Throttle zero
+    id: 0x02F
+    dlc: 2
+    data: "00 00"
+    delay_after_ms: 100
+
+  - comment: Parking brake on
+    id: 0x1C9
+    dlc: 1
+    data: "01"
+    delay_after_ms: 50
+
+  - comment: Engine stop
+    id: 0x1B8
+    dlc: 1
+    data: "00"

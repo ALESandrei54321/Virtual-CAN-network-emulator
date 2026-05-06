@@ -1,0 +1,101 @@
+# tools/examples/body_inputs.yaml
+
+bus:
+  protocol: CAN
+  bit_rate: 500000
+
+frames:
+  - comment: Position lights on
+    id: 0x1A7
+    dlc: 1
+    data: "01"
+    delay_after_ms: 100
+
+  - comment: Headlights on
+    id: 0x1A7
+    dlc: 1
+    data: "03"
+    delay_after_ms: 100
+
+  - comment: High beam
+    id: 0x1A7
+    dlc: 1
+    data: "07"
+    delay_after_ms: 100
+
+  - comment: Left turn signal
+    id: 0x083
+    dlc: 1
+    data: "01"
+    delay_after_ms: 200
+
+  - comment: Right turn signal
+    id: 0x083
+    dlc: 1
+    data: "02"
+    delay_after_ms: 200
+
+  - comment: Hazard lights
+    id: 0x083
+    dlc: 1
+    data: "04"
+    delay_after_ms: 200
+
+  - comment: Turn signal off
+    id: 0x083
+    dlc: 1
+    data: "00"
+    delay_after_ms: 100
+
+  - comment: Horn on
+    id: 0x098
+    dlc: 1
+    data: "01"
+    delay_after_ms: 200
+
+  - comment: Horn off
+    id: 0x098
+    dlc: 1
+    data: "00"
+    delay_after_ms: 100
+
+  - comment: Front wiper low speed
+    id: 0x25C
+    dlc: 1
+    data: "02"
+    delay_after_ms: 200
+
+  - comment: Front wiper high speed
+    id: 0x25C
+    dlc: 1
+    data: "04"
+    delay_after_ms: 200
+
+  - comment: Front wiper off
+    id: 0x25C
+    dlc: 1
+    data: "00"
+    delay_after_ms: 100
+
+  - comment: Lock all doors
+    id: 0x286
+    dlc: 1
+    data: "03"
+    delay_after_ms: 200
+
+  - comment: Unlock all doors
+    id: 0x286
+    dlc: 1
+    data: "02"
+    delay_after_ms: 100
+
+  - comment: Vehicle speed 50 km/h (triggers autolock)
+    id: 0x16F
+    dlc: 2
+    data: "00 32"
+    delay_after_ms: 200
+
+  - comment: Vehicle stopped
+    id: 0x16F
+    dlc: 2
+    data: "00 00"
