@@ -53,10 +53,13 @@ class CAN:
         sjw      : int = 1,
         bs1      : int = 6,
         bs2      : int = 8,
-        auto_restart: bool = False
+        auto_restart: bool = False,
+        fd       : bool = False,
+        data_baudrate: int = 2_000_000
     ):
         self._bus_id    = bus
         self._baudrate  = baudrate
+        self._fd        = fd
         self._filters   : list[tuple[int,int]] = []
         self._rx_queue  : list[CANFrame] = []
         self._rx_lock   = threading.Lock()
@@ -68,9 +71,11 @@ class CAN:
         # Callbacks (MicroPython supports recv callbacks)
         self._recv_callback: Callable | None = None
 
-        # Protocol handler
-        self._protocol  = CANProtocol(baudrate)
-        self._conv      = SignalConverter()
+        # Protocol handlers
+        self._can_protocol = CANProtocol(baudrate)
+        self._fd_protocol  = CANFDProtocol(baudrate, data_baudrate)
+        self._protocol     = self._fd_protocol if fd else self._can_protocol
+        self._conv         = SignalConverter()
 
         self._connect()
 
@@ -82,15 +87,16 @@ class CAN:
         )
         self._poll_thread.start()
 
-        print(f"[CAN] Bus {bus} initialised at {baudrate:,} bit/s")
+        fd_str = " FD" if fd else ""
+        print(f"[CAN{fd_str}] Bus {bus} initialised at {baudrate:,} bit/s")
 
     def _connect(self):
         """Connect to shared memory bus. Retries if not ready."""
         deadline = time.time() + 10.0   # 10 second timeout
         while time.time() < deadline:
             try:
-                self._reader = SHMBusReader()
                 self._writer = SHMBusWriter()
+                self._reader = SHMBusReader()
                 return
             except RuntimeError:
                 time.sleep(0.1)
@@ -201,13 +207,15 @@ class CAN:
         data   : bytes | bytearray,
         id     : int,
         timeout: int  = 5000,
-        rtr    : bool = False
+        rtr    : bool = False,
+        fdf    : bool = False
     ):
         """
         Send a CAN frame.
 
         data : bytes to send (max 8 for CAN, 64 for CAN FD)
         id   : arbitration ID
+        fdf  : if True, send as CAN FD frame with BRS
         """
         if self._writer is None:
             print(f"[CAN] Cannot send - not connected to bus")
@@ -215,17 +223,31 @@ class CAN:
 
         data = bytes(data)
 
-        frame = CANFrame(
-            arbitration_id = id,
-            dlc            = len(data),
-            data           = data,
-            protocol       = Protocol.CAN,
-            is_remote      = rtr
-        )
+        if fdf:
+            # CAN FD frame with Bit Rate Switch
+            frame = CANFrame(
+                arbitration_id = id,
+                dlc            = len(data),
+                data           = data,
+                protocol       = Protocol.CAN_FD,
+                is_remote      = False,
+                brs            = True,
+            )
+            signal, brs_index = self._fd_protocol.encode_with_brs(frame)
+            slot = make_slot(signal, frame, brs_index=brs_index)
+        else:
+            # Classic CAN frame
+            frame = CANFrame(
+                arbitration_id = id,
+                dlc            = len(data),
+                data           = data,
+                protocol       = Protocol.CAN,
+                is_remote      = rtr
+            )
+            signal = self._can_protocol.encode(frame)
+            slot   = make_slot(signal, frame)
 
-        signal = self._protocol.encode(frame)
-        slot   = make_slot(signal, frame)
-        ok     = self._writer.write(slot)
+        ok = self._writer.write(slot)
 
         if not ok:
             print(f"[CAN] Warning: bus full, frame 0x{id:03X} dropped")
@@ -313,8 +335,10 @@ class CAN:
                 bit_count  = bit_count
             )
 
-            if slot.protocol == 0:
-                return self._protocol.decode(signal)
+            if slot.protocol == 1:   # CAN_FD
+                return self._fd_protocol.decode(signal)
+            elif slot.protocol == 0: # Classic CAN
+                return self._can_protocol.decode(signal)
             return None
 
         except Exception:

@@ -1,7 +1,8 @@
 # network.yaml
 bus:
-  protocol: CAN
-  bit_rate: 500000
+  protocol: CAN_FD
+  nominal_bit_rate: 500000
+  data_bit_rate: 2000000
 
 ecus:
   - id: engine_ecu
@@ -19,6 +20,7 @@ ecus:
       - 0x043
       - 0x039
       - 0x1D3
+      - 0x7FF
 
   - id: body_ecu
     firmware: firmware/body_ecu/main.py
@@ -33,3 +35,14 @@ ecus:
       - 0x29C
       - 0x2B1
       - 0x16F
+
+  - id: gateway_ecu
+    firmware: firmware/gateway_ecu/main.py
+    filters:
+      - 0x043
+      - 0x19A
+      - 0x077
+      - 0x1D3
+      - 0x16F
+      - 0x08D
+      - 0x1BB

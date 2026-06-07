@@ -197,6 +197,10 @@ def format_frame_line(record: FrameRecord, verbose: bool) -> str:
         flags += " [EXT]"
     if frame.is_remote:
         flags += " [RTR]"
+    if frame.is_fd:
+        flags += " [FD]"
+    if frame.brs:
+        flags += " [BRS]"
 
     proto_str = frame.protocol.name
 

@@ -33,8 +33,21 @@ class CANEncoder:
         on the wire including bit stuffing.
         """
         if frame.protocol == Protocol.CAN_FD:
-            return self._encode_fd(frame)
+            bits, _ = self._encode_fd(frame)
+            return bits
         return self._encode_standard(frame)
+
+    def encode_with_metadata(self, frame: CANFrame) -> tuple[list[int], int]:
+        """
+        Encode a frame and return (bits, brs_index).
+
+        brs_index is the bit position (in the stuffed bit stream) where
+        the CAN FD data-rate phase begins (right after the BRS bit).
+        For classic CAN frames, brs_index is always 0.
+        """
+        if frame.protocol == Protocol.CAN_FD:
+            return self._encode_fd(frame)
+        return self._encode_standard(frame), 0
 
     # ── Standard CAN (2.0A and 2.0B) ─────────────────────────────────────────
 
@@ -106,14 +119,19 @@ class CANEncoder:
 
     # ── CAN FD ────────────────────────────────────────────────────────────────
 
-    def _encode_fd(self, frame: CANFrame) -> list[int]:
+    def _encode_fd(self, frame: CANFrame) -> tuple[list[int], int]:
         """
         CAN FD follows ISO 11898-1:2015.
         Key differences from classic CAN:
+          - FDF bit distinguishes from classic CAN
           - BRS bit switches to faster data bit rate
           - ESI bit signals error state
           - Longer CRC (17 or 21 bit depending on payload)
           - Different stuffing in CRC field
+
+        Returns (stuffed_bits, brs_index) where brs_index is the
+        bit position in the stuffed stream where the data-rate phase
+        begins. If BRS=0 (no switching), brs_index is 0.
         """
         raw = []
 
@@ -138,7 +156,13 @@ class CANEncoder:
         raw.append(0)   # r0 reserved
         raw.append(1)   # FDF (FD Frame) - recessive, distinguishes from classic
         raw.append(0)   # res - reserved
-        raw.append(1)   # BRS - Bit Rate Switch (recessive = switch to fast rate)
+
+        # BRS bit - recessive(1) = switch to fast rate, dominant(0) = no switch
+        brs_bit = 1 if frame.brs else 0
+        # Track position BEFORE stuffing for BRS
+        brs_raw_index = len(raw)
+        raw.append(brs_bit)
+
         raw.append(0)   # ESI - Error State Indicator (dominant = error active)
         raw += self._int_to_bits(frame.dlc, 4)
 
@@ -158,6 +182,14 @@ class CANEncoder:
         # Apply bit stuffing
         stuffed = self._apply_bit_stuffing(raw)
 
+        # Calculate BRS index in the stuffed stream.
+        # The BRS bit itself is at brs_raw_index in the raw stream.
+        # In the stuffed stream, the data-rate phase begins right AFTER
+        # the BRS bit. We find the stuffed position of brs_raw_index + 1.
+        brs_index = 0
+        if frame.brs:
+            brs_index = self._raw_to_stuffed_index(raw, stuffed, brs_raw_index + 1)
+
         # 6. CRC delimiter
         stuffed.append(1)
 
@@ -171,7 +203,7 @@ class CANEncoder:
         # 9. Interframe space
         stuffed += [1] * self.INTERFRAME_BITS
 
-        return stuffed
+        return stuffed, brs_index
 
     # ── Bit stuffing ──────────────────────────────────────────────────────────
 
@@ -264,3 +296,39 @@ class CANEncoder:
     def _int_to_bits(self, value: int, length: int) -> list[int]:
         """Convert an integer to a list of bits, MSB first."""
         return [(value >> (length - 1 - i)) & 1 for i in range(length)]
+
+    def _raw_to_stuffed_index(
+        self,
+        raw: list[int],
+        stuffed: list[int],
+        raw_index: int
+    ) -> int:
+        """
+        Map a raw (pre-stuffing) bit index to its position in the
+        stuffed bit stream.
+
+        Replays the bit stuffing logic, counting how many stuff bits
+        have been inserted before the target position.
+        """
+        stuffed_pos = 0
+        consecutive = 1
+        last_bit    = raw[0]
+        stuffed_pos += 1
+
+        for i in range(1, min(raw_index, len(raw))):
+            bit = raw[i]
+            if bit == last_bit:
+                consecutive += 1
+                if consecutive == 5:
+                    stuffed_pos += 1    # the raw bit itself
+                    stuffed_pos += 1    # the inserted stuff bit
+                    last_bit = 1 - bit  # stuff bit value
+                    consecutive = 1
+                    continue
+            else:
+                consecutive = 1
+
+            stuffed_pos += 1
+            last_bit = bit
+
+        return stuffed_pos

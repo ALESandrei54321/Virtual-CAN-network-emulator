@@ -68,7 +68,7 @@ hazard_led = Pin(11, Pin.OUT)
 lock_led   = Pin(12, Pin.OUT)
 horn_led   = Pin(9,  Pin.OUT)
 
-can = CAN(0, baudrate=500_000)
+can = CAN(0, baudrate=500_000, fd=True)
 
 can.setfilter(0, CAN.LIST16, 0, (
     0x083, 0x098, 0x1A7, 0x1B1,
@@ -161,36 +161,50 @@ def process_frame(arb_id, data):
     global right_window_cmd, left_window_cmd, vehicle_speed
 
     if arb_id == 0x16F:
-        vehicle_speed = int.from_bytes(data[0:2], 'big')
-        check_autolock()
+        new_val = int.from_bytes(data[0:2], 'big')
+        if new_val != vehicle_speed:
+            vehicle_speed = new_val
+            check_autolock()
 
     elif arb_id == 0x083:
-        turn_signal = data[0]
-        ts = {1:"LEFT", 2:"RIGHT", 4:"HAZARD"}.get(turn_signal, "OFF")
-        print(f"[BODY] Turn signal: {ts}")
+        new_val = data[0]
+        if new_val != turn_signal:
+            turn_signal = new_val
+            ts = {1:"LEFT", 2:"RIGHT", 4:"HAZARD"}.get(turn_signal, "OFF")
+            print(f"[BODY] Turn signal: {ts}")
 
     elif arb_id == 0x098:
-        horn_active = data[0]
-        horn_led.value(horn_active)
-        print(f"[BODY] Horn: {'ON' if horn_active else 'OFF'}")
+        new_val = data[0]
+        if new_val != horn_active:
+            horn_active = new_val
+            horn_led.value(horn_active)
+            print(f"[BODY] Horn: {'ON' if horn_active else 'OFF'}")
 
     elif arb_id == 0x1A7:
-        light_switch = data[0]
-        head_led.value(1 if light_switch & LIGHT_HEAD else 0)
-        print(f"[BODY] Lights: 0x{light_switch:02X}")
+        new_val = data[0]
+        if new_val != light_switch:
+            light_switch = new_val
+            head_led.value(1 if light_switch & LIGHT_HEAD else 0)
+            print(f"[BODY] Lights: 0x{light_switch:02X}")
 
     elif arb_id == 0x1B1:
-        light_flash = data[0]
-        print(f"[BODY] Flash: {light_flash}")
+        new_val = data[0]
+        if new_val != light_flash:
+            light_flash = new_val
+            print(f"[BODY] Flash: {light_flash}")
 
     elif arb_id == 0x25C:
-        front_wiper = data[0]
-        wmode = {1:"INT", 2:"LOW", 4:"HIGH", 10:"WASH"}.get(front_wiper, "OFF")
-        print(f"[BODY] Front wiper: {wmode}")
+        new_val = data[0]
+        if new_val != front_wiper:
+            front_wiper = new_val
+            wmode = {1:"INT", 2:"LOW", 4:"HIGH", 10:"WASH"}.get(front_wiper, "OFF")
+            print(f"[BODY] Front wiper: {wmode}")
 
     elif arb_id == 0x271:
-        rear_wiper = data[0]
-        print(f"[BODY] Rear wiper: {rear_wiper}")
+        new_val = data[0]
+        if new_val != rear_wiper:
+            rear_wiper = new_val
+            print(f"[BODY] Rear wiper: {rear_wiper}")
 
     elif arb_id == 0x286:
         door_lock_cmd = data[0]
@@ -228,51 +242,52 @@ def broadcast(timer):
     hazard_led.value(1 if turn_signal == TURN_HAZARD and hazard_tick else 0)
 
     # 0x08D Turn signal indicator
-    can.send(bytes([turn_out]), 0x08D)
+    can.send(bytes([turn_out]), 0x08D, fdf=True)
 
     # 0x0A2 Horn operation
-    can.send(bytes([horn_active]), 0x0A2)
+    can.send(bytes([horn_active]), 0x0A2, fdf=True)
 
     # 0x1BB Light indicator
-    can.send(bytes([light_actual]), 0x1BB)
+    can.send(bytes([light_actual]), 0x1BB, fdf=True)
 
     # 0x266 Front wiper status
-    can.send(bytes([front_wiper]), 0x266)
+    can.send(bytes([front_wiper]), 0x266, fdf=True)
 
     # 0x27B Rear wiper status
-    can.send(bytes([rear_wiper]), 0x27B)
+    can.send(bytes([rear_wiper]), 0x27B, fdf=True)
 
     # 0x290 Door status (byte0=open bitmask byte1=locked)
-    can.send(bytes([0x00, doors_locked]), 0x290)
+    can.send(bytes([0x00, doors_locked]), 0x290, fdf=True)
 
     # 0x2A6 Right window position
-    can.send(bytes([0x00, right_window_pos]), 0x2A6)
+    can.send(bytes([0x00, right_window_pos]), 0x2A6, fdf=True)
 
     # 0x2BB Left window position
-    can.send(bytes([0x00, left_window_pos]), 0x2BB)
+    can.send(bytes([0x00, left_window_pos]), 0x2BB, fdf=True)
 
     # 0x0B4 Airbag
-    can.send(bytes([airbag_deployed]), 0x0B4)
+    can.send(bytes([airbag_deployed]), 0x0B4, fdf=True)
 
     # 0x4B0 Collision alert
-    can.send(bytes([collision_alert]), 0x4B0)
+    can.send(bytes([collision_alert]), 0x4B0, fdf=True)
 
     # 0x3E9 Radar distance
-    can.send(radar_distance.to_bytes(2, 'big'), 0x3E9)
+    can.send(radar_distance.to_bytes(2, 'big'), 0x3E9, fdf=True)
 
     # 0x457 Seat belt
     if broadcast.tick % 50 == 0:
-        can.send(bytes([seat_belt]), 0x457)
-        can.send(bytes([belt_alarm]), 0x461)
+        can.send(bytes([seat_belt]), 0x457, fdf=True)
+        can.send(bytes([belt_alarm]), 0x461, fdf=True)
 
     broadcast.tick += 1
 
-    print(
-        f"[BODY] Lights=0x{light_actual:02X}  "
-        f"Turn={turn_out}  "
-        f"Wiper={front_wiper}  "
-        f"Lock={doors_locked}"
-    )
+    if broadcast.tick % 10 == 0:
+        print(
+            f"[BODY] Lights=0x{light_actual:02X}  "
+            f"Turn={turn_out}  "
+            f"Wiper={front_wiper}  "
+            f"Lock={doors_locked}"
+        )
 
 
 broadcast.tick = 0

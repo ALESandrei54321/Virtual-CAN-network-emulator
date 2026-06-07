@@ -40,9 +40,9 @@ abs_led     = Pin(14, Pin.OUT)
 tc_led      = Pin(13, Pin.OUT)
 parking_led = Pin(12, Pin.OUT)
 
-can = CAN(0, baudrate=500_000)
+can = CAN(0, baudrate=500_000, fd=True)
 
-can.setfilter(0, CAN.LIST16, 0, (0x043, 0x039, 0x1D3))
+can.setfilter(0, CAN.LIST16, 0, (0x043, 0x039, 0x1D3, 0x7FF))
 
 # ── State ─────────────────────────────────────────────────────────────────────
 
@@ -62,6 +62,13 @@ vehicle_speed   = 0      # km/h
 abs_active      = 0
 tire_angle      = 0
 steering_output = 0
+
+has_received_data = False
+
+# CARLA Gateway heartbeat tracking
+carla_active        = False
+carla_last_hb_ms    = 0
+CARLA_HB_TIMEOUT_MS = 2000   # Go back to normal if no heartbeat for 2s
 
 
 # ── Chassis model ─────────────────────────────────────────────────────────────
@@ -96,57 +103,81 @@ def compute_dynamics():
 # ── CAN receive ───────────────────────────────────────────────────────────────
 
 def process_frame(arb_id, data):
-    global engine_rpm, throttle_pos, parking_brake
+    global engine_rpm, throttle_pos, parking_brake, has_received_data
+    global carla_active, carla_last_hb_ms
+
+    has_received_data = True
+
+    if arb_id == 0x7FF:
+        # Gateway heartbeat — enter CARLA passive mode
+        if not carla_active:
+            carla_active = True
+            print("[CHASSIS] CARLA Gateway active — entering passive mode")
+        carla_last_hb_ms = time.ticks_ms()
+        return
 
     if arb_id == 0x043:
-        engine_rpm = int.from_bytes(data[0:4], 'big')
+        new_val = int.from_bytes(data[0:4], 'big')
+        if new_val != engine_rpm:
+            engine_rpm = new_val
+            print(f"[CHASSIS] Engine RPM: {engine_rpm}")
 
     elif arb_id == 0x039:
-        throttle_pos = int.from_bytes(data[0:2], 'big')
+        new_val = int.from_bytes(data[0:2], 'big')
+        if new_val != throttle_pos:
+            throttle_pos = new_val
+            print(f"[CHASSIS] Throttle pos: {throttle_pos}")
 
     elif arb_id == 0x1D3:
-        parking_brake = data[0]
+        new_val = data[0]
+        if new_val != parking_brake:
+            parking_brake = new_val
+            print(f"[CHASSIS] Parking brake: {'ON' if parking_brake else 'OFF'}")
 
 
 # ── CAN transmit ──────────────────────────────────────────────────────────────
 
 def broadcast(timer):
+    global carla_active
+
     compute_dynamics()
 
-    # Commands to engine ECU
-    can.send(throttle_input.to_bytes(2, 'big'), 0x02F)
-    can.send(brake_input.to_bytes(2, 'big'),    0x01A)
-    can.send(bytes([gear_input]),               0x06D)
-    can.send(bytes([parking_brake]),            0x1C9)
+    # Check CARLA heartbeat timeout
+    if carla_active:
+        elapsed = time.ticks_diff(time.ticks_ms(), carla_last_hb_ms)
+        if elapsed > CARLA_HB_TIMEOUT_MS:
+            carla_active = False
+            print("[CHASSIS] CARLA Gateway timeout — resuming normal mode")
 
-    # Chassis reports
-    # 0x058 Steering position (signed, encode as unsigned 2 bytes)
+    # Only send commands to engine if NOT in CARLA passive mode
+    if has_received_data and not carla_active:
+        can.send(throttle_input.to_bytes(2, 'big'), 0x02F, fdf=True)
+        can.send(brake_input.to_bytes(2, 'big'),    0x01A, fdf=True)
+        can.send(bytes([gear_input]),               0x06D, fdf=True)
+        can.send(bytes([parking_brake]),            0x1C9, fdf=True)
+
+    # Always send chassis reports
     steer_unsigned = steer_input + 511
-    can.send(steer_unsigned.to_bytes(2, 'big'), 0x058)
-
-    # 0x062 Power steering output
-    can.send(steering_output.to_bytes(2, 'big'), 0x062)
-
-    # 0x146 Brake oil (dummy - always OK)
-    can.send(bytes([0x00, 0x00]), 0x146)
-
-    # 0x15A ABS operation
-    can.send(bytes([abs_active]), 0x15A)
-
-    # 0x16F Throttle adjustment (vehicle speed in km/h)
+    can.send(steer_unsigned.to_bytes(2, 'big'), 0x058, fdf=True)
+    can.send(steering_output.to_bytes(2, 'big'), 0x062, fdf=True)
+    can.send(bytes([0x00, 0x00]), 0x146, fdf=True)
+    can.send(bytes([abs_active]), 0x15A, fdf=True)
     speed_encoded = min(1023, int(vehicle_speed))
-    can.send(speed_encoded.to_bytes(2, 'big'), 0x16F)
+    can.send(speed_encoded.to_bytes(2, 'big'), 0x16F, fdf=True)
+    can.send(tire_angle.to_bytes(2, 'big'), 0x198, fdf=True)
 
-    # 0x198 Tire angle
-    can.send(tire_angle.to_bytes(2, 'big'), 0x198)
+    if broadcast.tick % 10 == 0:
+        print(
+            f"[CHASSIS] Speed={vehicle_speed:.1f}km/h  "
+            f"Steer={steer_input}  "
+            f"ABS={abs_active}  "
+            f"Gear={gear_input}"
+        )
 
-    print(
-        f"[CHASSIS] Speed={vehicle_speed:.1f}km/h  "
-        f"Steer={steer_input}  "
-        f"ABS={abs_active}  "
-        f"Gear={gear_input}"
-    )
+    broadcast.tick += 1
 
+
+broadcast.tick = 0
 
 # ── Main ──────────────────────────────────────────────────────────────────────
 

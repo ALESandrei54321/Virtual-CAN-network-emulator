@@ -14,7 +14,7 @@
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-#define RING_SIZE        1024          // Must be power of 2
+#define RING_SIZE        4096
 #define RING_MASK        (RING_SIZE - 1)
 #define MAX_SIGNAL_BYTES 256           // 2048 bits max per frame
 #define SHM_NAME         "/virtual_can_bus"
@@ -31,23 +31,32 @@ typedef struct __attribute__((packed)) {
     uint8_t  protocol;        // 0 = CAN, 1 = CAN FD
     uint8_t  is_extended;
     uint8_t  is_remote;
-    uint8_t  _pad[3];         // explicit padding to align next field
+    uint16_t brs_index;       // bit index where data-rate phase begins
+                              // 0 = classic CAN (no rate switch)
+    uint8_t  _pad[1];         // explicit padding to align next field
     uint8_t  canh_bytes[MAX_SIGNAL_BYTES];
     uint8_t  canl_bytes[MAX_SIGNAL_BYTES];
 } BusFrameSlot;
 
 // ── Shared memory layout ──────────────────────────────────────────────────────
 
-// We place write_index and read_index on separate cache lines (64 bytes each)
-// to avoid false sharing between producer and consumer cores.
+// Cache-line-aligned layout to avoid false sharing.
+//
+// write_index: monotonically increasing counter (never wraps to 0).
+//   Actual slot = write_index & RING_MASK.
+//   This lets readers detect overwritten slots by comparing distance.
+//
+// write_lock: spinlock that serialises concurrent writers.
+//   Multiple ECU processes write to the same ring buffer.
+//   Without this, two writers could claim the same slot.
 typedef struct {
     // Cache line 0: producer writes here
     _Alignas(64) atomic_uint_fast64_t write_index;
     uint8_t _pad1[64 - sizeof(atomic_uint_fast64_t)];
 
-    // Cache line 1: consumer reads here
-    _Alignas(64) atomic_uint_fast64_t read_index;
-    uint8_t _pad2[64 - sizeof(atomic_uint_fast64_t)];
+    // Cache line 1: write serialisation lock
+    _Alignas(64) atomic_int write_lock;
+    uint8_t _pad2[64 - sizeof(atomic_int)];
 
     // Frame slots follow after the header
     _Alignas(64) BusFrameSlot slots[RING_SIZE];
@@ -67,15 +76,18 @@ void shm_close(SharedBus* bus);
 // Delete the shared memory object from the system.
 void shm_unlink_bus(void);
 
-// Write a frame. Returns 0 on success, -1 if buffer is full.
+// Write a frame. Always returns 0 (overwriting ring buffer, never full).
+// Safe to call from multiple processes concurrently.
 int shm_write(SharedBus* bus, const BusFrameSlot* frame);
 
-// Force delete and recreate the shm. Used by tests only.
+// Force delete and recreate the shm.
 SharedBus* shm_reset(void);
 
 // Read the next frame for this consumer.
 // consumer_index is per-ECU state (each ECU tracks its own position).
 // Returns 0 on success, -1 if no new frames.
+// If the consumer fell behind (slot overwritten), it advances
+// automatically to the oldest available slot.
 int shm_read(
     SharedBus*    bus,
     uint64_t*     consumer_index,

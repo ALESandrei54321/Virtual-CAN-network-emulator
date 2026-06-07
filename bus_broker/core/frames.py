@@ -37,6 +37,7 @@ class CANFrame:
     protocol       : Protocol = Protocol.CAN
     is_extended    : bool     = False
     is_remote      : bool     = False
+    brs            : bool     = False     # Bit Rate Switch (CAN FD only)
 
     # Set automatically by the bus controller, not by the user
     source_ecu_id  : str      = ""
@@ -90,6 +91,15 @@ class CANFrame:
         if self.protocol == Protocol.CAN_FD and self.is_remote:
             raise ValueError("CAN FD does not support remote frames")
 
+        # BRS is only valid for CAN FD
+        if self.brs and self.protocol != Protocol.CAN_FD:
+            raise ValueError("BRS (Bit Rate Switch) is only valid for CAN FD frames")
+
+    @property
+    def is_fd(self) -> bool:
+        """True if this is a CAN FD frame."""
+        return self.protocol == Protocol.CAN_FD
+
     @property
     def data_length(self) -> int:
         """Actual number of data bytes (not DLC code for CAN FD)"""
@@ -101,13 +111,18 @@ class CANFrame:
         data_hex = self.data.hex().upper()
         id_str   = f"0x{self.arbitration_id:08X}" if self.is_extended \
                    else f"0x{self.arbitration_id:03X}"
+        flags = []
+        if self.is_extended: flags.append("EXT")
+        if self.is_remote:   flags.append("RTR")
+        if self.is_fd:       flags.append("FD")
+        if self.brs:         flags.append("BRS")
+        flag_str = f"  [{' '.join(flags)}]" if flags else ""
         return (
             f"CANFrame("
             f"protocol={self.protocol.name}, "
             f"id={id_str}, "
             f"dlc={self.dlc}, "
             f"data={data_hex}"
-            f"{'  [EXT]' if self.is_extended else ''}"
-            f"{'  [RTR]' if self.is_remote  else ''}"
+            f"{flag_str}"
             f")"
         )

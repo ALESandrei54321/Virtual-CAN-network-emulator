@@ -8,7 +8,7 @@ from pathlib import Path
 # ── Mirror the C structs exactly ──────────────────────────────────────────────
 
 MAX_SIGNAL_BYTES = 256
-RING_SIZE        = 1024
+RING_SIZE        = 4096
 
 class BusFrameSlot(ctypes.Structure):
     _pack_ = 1
@@ -19,7 +19,8 @@ class BusFrameSlot(ctypes.Structure):
         ("protocol",        ctypes.c_uint8),
         ("is_extended",     ctypes.c_uint8),
         ("is_remote",       ctypes.c_uint8),
-        ("_pad",            ctypes.c_uint8 * 3),
+        ("brs_index",       ctypes.c_uint16),   # bit where data-rate begins (0=CAN)
+        ("_pad",            ctypes.c_uint8 * 1),
         ("canh_bytes",      ctypes.c_uint8 * MAX_SIGNAL_BYTES),
         ("canl_bytes",      ctypes.c_uint8 * MAX_SIGNAL_BYTES),
     ]
@@ -156,7 +157,8 @@ class SHMBusReader:
 def make_slot(
     signal,
     frame,
-    timestamp_ns: int | None = None
+    timestamp_ns: int | None = None,
+    brs_index: int = 0
 ) -> BusFrameSlot:
     slot                = BusFrameSlot()
     slot.timestamp_ns   = timestamp_ns or time.time_ns()
@@ -165,6 +167,7 @@ def make_slot(
     slot.protocol       = int(frame.protocol)
     slot.is_extended    = int(frame.is_extended)
     slot.is_remote      = int(frame.is_remote)
+    slot.brs_index      = brs_index
 
     canh = signal.canh_bytes
     canl = signal.canl_bytes
