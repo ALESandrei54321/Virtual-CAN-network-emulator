@@ -1,0 +1,64 @@
+--- Virtual CAN Network Simulator ---
+[Runner] Building LittleFS firmware images...
+  -> /home/andrei/Facultate/DIZERTATIE/virtual-can-network/firmware/gateway.img
+  -> /home/andrei/Facultate/DIZERTATIE/virtual-can-network/firmware/engine.img
+  -> /home/andrei/Facultate/DIZERTATIE/virtual-can-network/firmware/chassis.img
+  -> /home/andrei/Facultate/DIZERTATIE/virtual-can-network/firmware/body.img
+[Runner] Spawning 4 ECU workers...
+[Body] Starting ECU worker...
+[Chassis] Starting ECU worker...
+[Body] Loaded 1247 UF2 blocks.
+[Chassis] Loaded 1247 UF2 blocks.
+[Gateway] Starting ECU worker...
+[Engine] Starting ECU worker...
+[Engine] Loaded 1247 UF2 blocks.
+[Gateway] Loaded 1247 UF2 blocks.
+[Runner] All ECUs ready. Starting bus clock...
+[Engine] Still executing... PC: 0x10016896 (instr: 0x4293) Exception: 0 VTOR: 0x20000000 SP: 0x20041d30 LR: 0x1001686d
+[Chassis] Still executing... PC: 0x10016896 (instr: 0x4293) Exception: 0 VTOR: 0x20000000 SP: 0x20041d30 LR: 0x1001686d
+[Body] Still executing... PC: 0x10016896 (instr: 0x4293) Exception: 0 VTOR: 0x20000000 SP: 0x20041d30 LR: 0x1001686d
+[Gateway] Still executing... PC: 0x10016896 (instr: 0x4293) Exception: 0 VTOR: 0x20000000 SP: 0x20041d30 LR: 0x1001686d
+[Gateway] Still executing... PC: 0x10030912 (instr: 0x6651) Exception: 0 VTOR: 0x20000000 SP: 0x20041a10 LR: 0x10009ad7
+[Engine] Still executing... PC: 0x10030912 (instr: 0x6651) Exception: 0 VTOR: 0x20000000 SP: 0x20041a10 LR: 0x10009ad7
+[Chassis] Still executing... PC: 0x10030912 (instr: 0x6651) Exception: 0 VTOR: 0x20000000 SP: 0x20041a10 LR: 0x10009ad7
+[Body] Still executing... PC: 0x10030912 (instr: 0x6651) Exception: 0 VTOR: 0x20000000 SP: 0x20041a10 LR: 0x10009ad7
+[Engine] Still executing... PC: 0x20000d64 (instr: 0x4088) Exception: 0 VTOR: 0x20000000 SP: 0x20041c88 LR: 0x20000be1
+[Gateway] Still executing... PC: 0x20000d64 (instr: 0x4088) Exception: 0 VTOR: 0x20000000 SP: 0x20041c88 LR: 0x20000be1
+[Chassis] Still executing... PC: 0x20000d64 (instr: 0x4088) Exception: 0 VTOR: 0x20000000 SP: 0x20041c88 LR: 0x20000be1
+[Body] Still executing... PC: 0x20000d64 (instr: 0x4088) Exception: 0 VTOR: 0x20000000 SP: 0x20041c88 LR: 0x20000be1
+[Engine] Still executing... PC: 0x1002de9e (instr: 0x1812) Exception: 0 VTOR: 0x20000000 SP: 0x20041f38 LR: 0x1002e2d9
+[Gateway] Still executing... PC: 0x1002de9e (instr: 0x1812) Exception: 0 VTOR: 0x20000000 SP: 0x20041f38 LR: 0x1002e2d9
+[Chassis] Still executing... PC: 0x1002de9e (instr: 0x1812) Exception: 0 VTOR: 0x20000000 SP: 0x20041f38 LR: 0x1002e2d9
+[Body] Still executing... PC: 0x1002de9e (instr: 0x1812) Exception: 0 VTOR: 0x20000000 SP: 0x20041f38 LR: 0x1002e2d9
+[Engine] Still executing... PC: 0x1002dcbc (instr: 0x2d00) Exception: 19 VTOR: 0x20000000 SP: 0x20041ef0 LR: 0x1002dc7d
+[Gateway] Still executing... PC: 0x1002dcbc (instr: 0x2d00) Exception: 19 VTOR: 0x20000000 SP: 0x20041ef0 LR: 0x1002dc7d
+[Chassis] Still executing... PC: 0x1002dcbc (instr: 0x2d00) Exception: 19 VTOR: 0x20000000 SP: 0x20041ef0 LR: 0x1002dc7d
+[Body] Still executing... PC: 0x1002dcbc (instr: 0x2d00) Exception: 19 VTOR: 0x20000000 SP: 0x20041ef0 LR: 0x1002dc7d
+[Engine] Still executing... PC: 0x1002de5c (instr: 0x2b00) Exception: 0 VTOR: 0x20000000 SP: 0x20041f38 LR: 0x1002e05f
+[Gateway] Still executing... PC: 0x1002de5c (instr: 0x2b00) Exception: 0 VTOR: 0x20000000 SP: 0x20041f38 LR: 0x1002e05f
+[Body] Still executing... PC: 0x1002de5c (instr: 0x2b00) Exception: 0 VTOR: 0x20000000 SP: 0x20041f38 LR: 0x1002e05f
+[Chassis] Still executing... PC: 0x1002de5c (instr: 0x2b00) Exception: 0 VTOR: 0x20000000 SP: 0x20041f38 LR: 0x1002e05f
+[Engine] Still executing... PC: 0x1001e8d2 (instr: 0xbd10) Exception: 0 VTOR: 0x20000000 SP: 0x20041f98 LR: 0x10029ca7
+[Body] Still executing... PC: 0x1001e8d2 (instr: 0xbd10) Exception: 0 VTOR: 0x20000000 SP: 0x20041f98 LR: 0x10029ca7
+[Gateway] Still executing... PC: 0x1001e8d2 (instr: 0xbd10) Exception: 0 VTOR: 0x20000000 SP: 0x20041f98 LR: 0x10029ca7
+[Chassis] Still executing... PC: 0x1001e8d2 (instr: 0xbd10) Exception: 0 VTOR: 0x20000000 SP: 0x20041f98 LR: 0x10029ca7
+[Engine] Still executing... PC: 0x1002e064 (instr: 0x30) Exception: 0 VTOR: 0x20000000 SP: 0x20041f80 LR: 0x1002e2d9
+[Body] Still executing... PC: 0x1002e064 (instr: 0x30) Exception: 0 VTOR: 0x20000000 SP: 0x20041f80 LR: 0x1002e2d9
+[Chassis] Still executing... PC: 0x1002e064 (instr: 0x30) Exception: 0 VTOR: 0x20000000 SP: 0x20041f80 LR: 0x1002e2d9
+[Gateway] Still executing... PC: 0x1002e064 (instr: 0x30) Exception: 0 VTOR: 0x20000000 SP: 0x20041f80 LR: 0x1002e2d9
+[Engine] Still executing... PC: 0x1002dc50 (instr: 0x20) Exception: 0 VTOR: 0x20000000 SP: 0x20041f10 LR: 0x1002e2d9
+[Body] Still executing... PC: 0x1002dc50 (instr: 0x20) Exception: 0 VTOR: 0x20000000 SP: 0x20041f10 LR: 0x1002e2d9
+[Gateway] Still executing... PC: 0x1002dc50 (instr: 0x20) Exception: 0 VTOR: 0x20000000 SP: 0x20041f10 LR: 0x1002e2d9
+[Chassis] Still executing... PC: 0x1002dc50 (instr: 0x20) Exception: 0 VTOR: 0x20000000 SP: 0x20041f10 LR: 0x1002e2d9
+[Engine] Still executing... PC: 0x1002e0af (instr: 0xef38) Exception: 19 VTOR: 0x20000000 SP: 0x20041f40 LR: 0xfffffff9
+[Body] Still executing... PC: 0x1002e0af (instr: 0xef38) Exception: 19 VTOR: 0x20000000 SP: 0x20041f40 LR: 0xfffffff9
+[Gateway] Still executing... PC: 0x1002e0af (instr: 0xef38) Exception: 19 VTOR: 0x20000000 SP: 0x20041f40 LR: 0xfffffff9
+[Chassis] Still executing... PC: 0x1002e0af (instr: 0xef38) Exception: 19 VTOR: 0x20000000 SP: 0x20041f40 LR: 0xfffffff9
+[Engine] Still executing... PC: 0x1002de52 (instr: 0x6872) Exception: 0 VTOR: 0x20000000 SP: 0x20041f38 LR: 0x1002e05f
+[Chassis] Still executing... PC: 0x1002de52 (instr: 0x6872) Exception: 0 VTOR: 0x20000000 SP: 0x20041f38 LR: 0x1002e05f
+[Body] Still executing... PC: 0x1002de52 (instr: 0x6872) Exception: 0 VTOR: 0x20000000 SP: 0x20041f38 LR: 0x1002e05f
+[Gateway] Still executing... PC: 0x1002de52 (instr: 0x6872) Exception: 0 VTOR: 0x20000000 SP: 0x20041f38 LR: 0x1002e05f
+[Engine] Still executing... PC: 0x1001e8c6 (instr: 0x6823) Exception: 0 VTOR: 0x20000000 SP: 0x20041f60 LR: 0x10029ca7
+[Chassis] Still executing... PC: 0x1001e8c6 (instr: 0x6823) Exception: 0 VTOR: 0x20000000 SP: 0x20041f60 LR: 0x10029ca7
+[Body] Still executing... PC: 0x1001e8c6 (instr: 0x6823) Exception: 0 VTOR: 0x20000000 SP: 0x20041f60 LR: 0x10029ca7
+[Gateway] Still executing... PC: 0x1001e8c6 (instr: 0x6823) Exception: 0 VTOR: 0x20000000 SP: 0x20041f60 LR: 0x10029ca7

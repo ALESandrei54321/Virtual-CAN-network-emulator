@@ -26,7 +26,8 @@ Transmits (reports to chassis):
   0x3DE  Battery warning            (1 byte, 0-1)
 """
 
-from machine import CAN, Pin, Timer
+from can_fd_driver import CAN
+from machine import Pin, Timer
 import time
 
 # ── Constants ─────────────────────────────────────────────────────────────────
@@ -101,88 +102,79 @@ def process_frame(arb_id, data):
     global throttle_cmd, brake_cmd, gear_cmd
     global engine_running, parking_brake
 
+    print(f"$$CAN_RX,{arb_id:03X},{data.hex()}")
+
     if arb_id == 0x1B8:
         new_val = data[0]
         if new_val != engine_running:
             engine_running = new_val
-            print(f"[ENGINE] Engine {'START' if engine_running else 'STOP'}")
 
     elif arb_id == 0x02F:
         new_val = int.from_bytes(data[0:2], 'big')
         if new_val != throttle_cmd:
             throttle_cmd = new_val
-            print(f"[ENGINE] Throttle cmd: {throttle_cmd}")
 
     elif arb_id == 0x01A:
         new_val = int.from_bytes(data[0:2], 'big')
         if new_val != brake_cmd:
             brake_cmd = new_val
-            print(f"[ENGINE] Brake cmd: {brake_cmd}")
 
     elif arb_id == 0x06D:
         new_val = data[0]
         if new_val != gear_cmd:
             gear_cmd = new_val
-            print(f"[ENGINE] Gear cmd: {gear_cmd}")
 
     elif arb_id == 0x1C9:
         new_val = data[0]
         if new_val != parking_brake:
             parking_brake = new_val
-            print(f"[ENGINE] Parking brake: {'ON' if parking_brake else 'OFF'}")
 
 
 # ── CAN transmit ──────────────────────────────────────────────────────────────
+
+def _send_can(data, arb_id):
+    print(f"$$CAN_TX,{arb_id:03X},{data.hex()}")
+    can.send(data, arb_id, fdf=True)
 
 def broadcast(timer):
     simulate_engine()
 
     # 0x039 Throttle position
-    can.send(throttle_cmd.to_bytes(2, 'big'), 0x039, fdf=True)
+    _send_can(throttle_cmd.to_bytes(2, 'big'), 0x039)
 
     # 0x043 Engine RPM (4 bytes)
-    can.send(engine_rpm.to_bytes(4, 'big'), 0x043, fdf=True)
+    _send_can(engine_rpm.to_bytes(4, 'big'), 0x043)
 
     # 0x024 Brake output
-    can.send(brake_cmd.to_bytes(2, 'big'), 0x024, fdf=True)
+    _send_can(brake_cmd.to_bytes(2, 'big'), 0x024)
 
     # 0x077 Gear position
-    can.send(bytes([gear_cmd]), 0x077, fdf=True)
+    _send_can(bytes([gear_cmd]), 0x077)
 
     # 0x19A Engine status
-    can.send(bytes([engine_running]), 0x19A, fdf=True)
+    _send_can(bytes([engine_running]), 0x19A)
 
     # 0x1D3 Parking brake status
-    can.send(bytes([parking_brake]), 0x1D3, fdf=True)
+    _send_can(bytes([parking_brake]), 0x1D3)
 
     # 0x183 Coolant temperature
-    can.send(bytes([min(255, coolant_temp)]), 0x183, fdf=True)
+    _send_can(bytes([min(255, coolant_temp)]), 0x183)
 
     # 0x18D Engine malfunction
-    can.send(bytes([malfunction]), 0x18D, fdf=True)
+    _send_can(bytes([malfunction]), 0x18D)
 
     # 0x3D4 Fuel level (every 500ms - only send every 50th tick)
-    if broadcast.tick % 50 == 0:
-        can.send(bytes([int(fuel_level)]), 0x3D4, fdf=True)
+    if broadcast_tick % 50 == 0:
+        _send_can(bytes([int(fuel_level)]), 0x3D4)
 
     # 0x3DE Battery warning
-    if broadcast.tick % 50 == 0:
-        can.send(bytes([0 if battery_ok else 1]), 0x3DE, fdf=True)
+    if broadcast_tick % 50 == 0:
+        _send_can(bytes([0 if battery_ok else 1]), 0x3DE)
 
-    broadcast.tick += 1
+    global broadcast_tick
+    broadcast_tick += 1
 
-    # Only print every 10th tick (every 100ms)
-    if broadcast.tick % 10 == 0:
-        print(
-            f"[ENGINE] RPM={engine_rpm:5d}  "
-            f"Throttle={throttle_cmd:4d}  "
-            f"Brake={brake_cmd:4d}  "
-            f"Gear={gear_cmd}  "
-            f"Temp={coolant_temp}C"
-        )
-
-
-broadcast.tick = 0
+broadcast_tick = 0
 
 # ── Main ──────────────────────────────────────────────────────────────────────
 

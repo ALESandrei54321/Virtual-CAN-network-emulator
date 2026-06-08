@@ -31,7 +31,8 @@ Receives (reports from other ECUs):
   0x1BB  Light indicator            (from Body)
 """
 
-from machine import CAN, Pin, Timer
+from can_fd_driver import CAN
+from machine import Pin, Timer
 import time
 import socket
 import threading
@@ -195,6 +196,7 @@ def handle_client(conn):
 
 def process_frame(arb_id, data):
     """Process report frames from other ECUs."""
+    print(f"$$CAN_RX,{arb_id:03X},{data.hex()}")
     with reports_lock:
         if arb_id == 0x043:
             bus_reports["rpm"] = int.from_bytes(data[0:4], 'big')
@@ -213,6 +215,10 @@ def process_frame(arb_id, data):
 
 
 # ── CAN transmit ──────────────────────────────────────────────────────────────
+
+def _send_can(data, arb_id):
+    print(f"$$CAN_TX,{arb_id:03X},{data.hex()}")
+    can.send(data, arb_id, fdf=True)
 
 def broadcast(timer):
     """Send CARLA telemetry as CAN commands every tick."""
@@ -238,31 +244,29 @@ def broadcast(timer):
     gear       = max(0, min(255, int(gear)))
 
     # Send command frames
-    can.send(throttle.to_bytes(2, 'big'),  ID_THROTTLE, fdf=True)
-    can.send(brake.to_bytes(2, 'big'),     ID_BRAKE, fdf=True)
-    can.send(bytes([gear]),                ID_GEAR, fdf=True)
-    can.send(bytes([1 if ignition else 0]),ID_IGNITION, fdf=True)
-    can.send(bytes([1 if hand_brake else 0]), ID_PARK_BRAKE, fdf=True)
+    _send_can(throttle.to_bytes(2, 'big'),  ID_THROTTLE)
+    _send_can(brake.to_bytes(2, 'big'),     ID_BRAKE)
+    _send_can(bytes([gear]),                ID_GEAR)
+    _send_can(bytes([1 if ignition else 0]),ID_IGNITION)
+    _send_can(bytes([1 if hand_brake else 0]), ID_PARK_BRAKE)
 
     # Steering as unsigned (add 511 offset, same as chassis ECU)
     steer_unsigned = steer_val + 511
-    can.send(steer_unsigned.to_bytes(2, 'big'), ID_STEER, fdf=True)
+    _send_can(steer_unsigned.to_bytes(2, 'big'), ID_STEER)
 
     # Body commands
-    can.send(bytes([int(light_turn) & 0xFF]),  ID_TURN_SIGNAL, fdf=True)
-    can.send(bytes([int(light_front) & 0xFF]), ID_LIGHT_FRONT, fdf=True)
-    can.send(bytes([int(light_flash) & 0xFF]), ID_LIGHT_FLASH, fdf=True)
+    _send_can(bytes([int(light_turn) & 0xFF]),  ID_TURN_SIGNAL)
+    _send_can(bytes([int(light_front) & 0xFF]), ID_LIGHT_FRONT)
+    _send_can(bytes([int(light_flash) & 0xFF]), ID_LIGHT_FLASH)
 
     # CARLA heartbeat — tells Chassis ECU to go passive
-    can.send(bytes([0x01]), ID_HEARTBEAT, fdf=True)
+    _send_can(bytes([0x01]), ID_HEARTBEAT)
 
-    # Print status changes only
-    broadcast.tick += 1
-    if broadcast.tick % 10 == 0:
-        _print_status(throttle, brake, steer_val, gear, ignition)
+    global broadcast_tick
+    broadcast_tick += 1
 
 
-broadcast.tick = 0
+broadcast_tick = 0
 
 
 def _print_status(throttle, brake, steer, gear, ignition):
@@ -274,12 +278,10 @@ def _print_status(throttle, brake, steer, gear, ignition):
     }
     if current != _prev:
         _prev = current
+        ign_str = 'ON' if ignition else 'OFF'
         print(
-            f"[GATEWAY] Throttle={throttle:4d}  "
-            f"Brake={brake:4d}  "
-            f"Steer={steer:+4d}  "
-            f"Gear={gear}  "
-            f"Ign={'ON' if ignition else 'OFF'}"
+            "[GATEWAY] Throttle=%4d  Brake=%4d  Steer=%+4d  Gear=%d  Ign=%s" %
+            (throttle, brake, steer, gear, ign_str)
         )
 
 
@@ -288,7 +290,7 @@ def _print_status(throttle, brake, steer, gear, ignition):
 def heartbeat(timer):
     """Send heartbeat while connected, stop when disconnected."""
     if client_connected:
-        can.send(bytes([0x01]), ID_HEARTBEAT, fdf=True)
+        _send_can(bytes([0x01]), ID_HEARTBEAT)
 
 
 # ── Main ──────────────────────────────────────────────────────────────────────
